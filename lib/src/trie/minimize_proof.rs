@@ -24,14 +24,7 @@ pub fn minimize_proof<T: AsRef<[u8]>>(
 ) -> Result<Vec<u8>, MinimizeProofError> {
     let mut builder = ProofBuilder::new();
 
-    let nibbles = decoded_proof
-        .closest_ancestor_in_proof(
-            trie_root_merkle_value,
-            bytes_to_nibbles(key.iter().copied()),
-        )
-        .map_err(|_| MinimizeProofError::IncompleteProof)?
-        .ok_or(MinimizeProofError::KeyDoesNotMatch)?
-        .collect_vec();
+    let nibbles = bytes_to_nibbles(key.iter().copied()).collect_vec();
 
     // Set the node value of the leaf
     let node = decoded_proof
@@ -42,6 +35,22 @@ pub fn minimize_proof<T: AsRef<[u8]>>(
         _ => None,
     };
     builder.set_node_value(&nibbles, node.node_value, storage_value);
+
+    let ancestor_nibbles = decoded_proof
+        .closest_ancestor_in_proof(trie_root_merkle_value, nibbles.iter().cloned())
+        .map_err(|_| MinimizeProofError::IncompleteProof)?
+        .ok_or(MinimizeProofError::KeyDoesNotMatch)?
+        .collect_vec();
+    if ancestor_nibbles != nibbles {
+        let node = decoded_proof
+            .trie_node_info(trie_root_merkle_value, ancestor_nibbles.iter().cloned())
+            .map_err(|_| MinimizeProofError::IncompleteProof)?;
+        let storage_value = match node.storage_value {
+            StorageValue::Known { value, .. } => Some(value),
+            _ => None,
+        };
+        builder.set_node_value(&ancestor_nibbles, node.node_value, storage_value);
+    }
 
     // Query a missing node and provide its value. Stop when the proof is complete.
     let mut maybe_missing = builder.missing_node_values().next().map(|v| Vec::from(v));

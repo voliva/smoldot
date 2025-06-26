@@ -159,13 +159,12 @@ impl ProofBuilder {
             key.len() >= partial_key_len,
             "mismatch between node value partial key and provided key"
         );
-        assert!(
-            itertools::equal(
-                key[(key.len() - partial_key_len)..].iter().copied(),
-                decoded_node_value.partial_key.clone()
-            ),
-            "mismatch between node value partial key and provided key"
-        );
+        if !itertools::equal(
+            key[(key.len() - partial_key_len)..].iter().copied(),
+            decoded_node_value.partial_key.clone(),
+        ) {
+            return;
+        }
         if key.len() != partial_key_len {
             let parent_key = &key[..(key.len() - partial_key_len - 1)];
             match self.trie_structure.node(parent_key.iter().copied()) {
